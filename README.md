@@ -1,4 +1,10 @@
-This software is designed to be used in conjunction with Netbox as a system to maintain state data for Netbox's IPAM functionality. Netbox is an excellent DCIM and "source of truth" with an awesome API.
+This software is designed to be used in conjunction with Netbox as a system to maintain state data for Netbox's IPAM functionality. Netbox is an excellent DCIM and "source of truth" with an REST API.
+
+# Purpose
+
+The goal of this software is to load Netbox with basic state data regarding IP addresses. Specifically, it currently pings out and also performs a reverse DNS lookup on the supplied IP addresses (either range via Netbox prefix, or existing Netbox IP address objects).
+
+The problem the software was designed to solve is an environment currently without an IPAM or using spreadsheets as an IPAM that would prefer to use a FOSS solution with state data to assist in maintaining/cleaning up their IP environment. For example, if someone brings online a new printer and neglects to inform Netbox, this tool is capable of helping to flag that up. Feel free to request features via the issue tracker here on Github.
 
 # Install
 
