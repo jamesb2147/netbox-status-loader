@@ -1,7 +1,7 @@
 #Copyright Sean Hunter
 #Using MIT License (see license file for detail)
 
-import json, requests, ipaddress, dns.resolver
+import json, requests, ipaddress, dns.resolver, time
 #Python3 way (currently broken)
 #import ping3
 #Python2 way (currently the only non-broken way)
@@ -118,7 +118,7 @@ def saveAddr(addr):
 		post = requests.post(ip_addresses_url, headers=header, json=addr)
 		print(post.status_code)
 		print(post.json())
-	if addr['isNew'] == "old":
+	elif addr['isNew'] == "old":
 		addr.pop('isNew', None)
 		try:
 			role = addr['role']['value']
@@ -133,6 +133,7 @@ def saveAddr(addr):
 	return addr
 
 if __name__ == '__main__':
+	start_time = time.time()
 	if load_scanner_from_rfc1918_or_netbox == 1:
 		#Load from RFC1918
 		print("Not currently loading addresses from RFC1918, even though I was told to!!")
@@ -164,9 +165,11 @@ if __name__ == '__main__':
 	pool = Pool(processes=numProcesses)
 	#Here, we call isPingable for every entity in listOfIpsWithMask
 	result = pool.map(threadedPingReverseSave, listOfIpsWithMask)
-#Presently looking at solutions that can sort this mess by IP address... currently results are unsorted.
+#	Presently looking at solutions that can sort this mess by IP address... currently results are unsorted.
 	print(result)
 	print(json.dumps(result, indent=4))
+	completion_time = time.time() - start_time
+	print("Run took " + format(completion_time / 60) + " minutes and " + format(completion_time % 60) + " seconds")
 #	r = requests.post(ip_addresses_url, headers=header, json={"address": "192.168.3.2", "status": "1"})
 #	print r.status_code
 #	print r.json()
