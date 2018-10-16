@@ -139,13 +139,13 @@ if __name__ == '__main__':
 		print("Not currently loading addresses from RFC1918, even though I was told to!!")
 	if load_scanner_from_rfc1918_or_netbox == 2:
 		#GET IP addresses from Netbox
-		response = requests.get(ip_addresses_url)
+		response = requests.get(ip_addresses_url, headers=header)
 		listOfIpsWithMask = response.json()['results']
 		for ipaddr in listOfIpsWithMask:
 			ipaddr['isNew'] = "old"
 	if load_scanner_from_rfc1918_or_netbox == 3:
 		#GET IP prefixes from Netbox
-		response = requests.get(ip_prefixes_url)
+		response = requests.get(ip_prefixes_url, headers=header)
 		listOfPrefixes = response.json()['results']
 		print(json.dumps(listOfPrefixes, indent=4))
 		listOfIps = []
