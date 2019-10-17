@@ -1,7 +1,7 @@
 #Copyright Sean Hunter
 #Using MIT License (see license file for detail)
 
-import json, requests, ipaddress, dns.resolver, time
+import json, requests, ipaddress, dns.resolver, datetime
 #Python3 way (currently broken)
 #import ping3
 #Python2 way (currently the only non-broken way)
@@ -21,25 +21,25 @@ ip_prefixes_url = "http://localhost:32768/api/ipam/prefixes/"
 
 #Authorization header
 #This must be generated from the Netbox web UI at http://netbox/user/api-tokens/
-header={"Authorization": "Token _REALLY_LONG_RANDOM_STRING_"}
+header={"Authorization": "Token 0123456789abcdef0123456789abcdef01234567"}
 
 #Set to:
 #1 - Scan RFC1918 space (192.168.0.0/16, 172.16.0.0/12, 10.0.0.0/8)
 #2 - Scan IP addresses defined in Netbox
 #3 - Scan prefixes defined in Netbox
-load_scanner_from_rfc1918_or_netbox = 2
+load_scanner_from_rfc1918_or_netbox = 3
 
 #OK, don't touch this line
 myResolver = dns.resolver.Resolver()
 #But MAKE CERTAIN that this one fits your environment; there will be reverse
 #DNS requests made to this(these) server(s)
-myResolver.nameservers = ['192.168.110.100','8.8.8.8']
+myResolver.nameservers = ['192.168.0.1','172.16.0.1','10.0.0.1']
 
 #Determines the number of simultaneous pings to execute during timeout
 #This can have a *very* high impact on performance, and can impact system
 #stability so it is advised to only mess with it if you really know what you
 #are doing
-numProcesses = 100
+numProcesses = 250
 
 #############################################################################
 #THROUGH HERE ###############################################################
@@ -112,7 +112,7 @@ def threadedPingReverseSave(addr):
 	return result
 
 def saveAddr(addr):
-	print("entered saveAddr")
+	print("entered saveAddr for " + addr['address'])
 	if addr['isNew'] == "new":
 		addr.pop('isNew', None)
 		post = requests.post(ip_addresses_url, headers=header, json=addr)
@@ -132,31 +132,64 @@ def saveAddr(addr):
 		print(post.json())
 	return addr
 
+def mergeWithExisting(addr, listOfIps):
+	for ip_addr in listOfIps:
+		print("IP to match: " + addr['address'] + " and checking against IP: " + ip_addr['address'])
+		if ip_addr['address'] == addr['address']:
+			print("MATCH: " + json.dumps(ip_addr, indent=4))
+			#Get 'id' from existing and stuff it in addr
+			print(ip_addr['id'])
+			addr['id'] = ip_addr['id']
+			addr['isNew'] = "old"
+	return addr
+
 if __name__ == '__main__':
-	start_time = time.time()
+	start = datetime.datetime.now()
 	if load_scanner_from_rfc1918_or_netbox == 1:
 		#Load from RFC1918
 		print("Not currently loading addresses from RFC1918, even though I was told to!!")
 	if load_scanner_from_rfc1918_or_netbox == 2:
 		#GET IP addresses from Netbox
-		response = requests.get(ip_addresses_url, headers=header)
+		response = requests.get(ip_addresses_url, headers = header)
 		listOfIpsWithMask = response.json()['results']
+		while response.json()['next'] is not None:
+			response = requests.get(response.json()['next'], headers = header)
+			for ip in response.json()['results']:
+				listOfIpsWithMask.append(ip)
 		for ipaddr in listOfIpsWithMask:
 			ipaddr['isNew'] = "old"
+		print("Populated from list of existing IP addresses. No new ones will be scanned.")
 	if load_scanner_from_rfc1918_or_netbox == 3:
 		#GET IP prefixes from Netbox
-		response = requests.get(ip_prefixes_url, headers=header)
+		response = requests.get(ip_prefixes_url, headers = header)
 		listOfPrefixes = response.json()['results']
+		while response.json()['next'] is not None:
+			response = requests.get(ip_prefixes_url, headers = header)
+			for prefix in response.json()['results']:
+				listOfPrefixes.append(prefix)
 		print(json.dumps(listOfPrefixes, indent=4))
 		listOfIps = []
 		for prefixObj in listOfPrefixes:
 			print(prefixObj['prefix'])
-			print(ipaddress.ip_network(prefixObj['prefix']).hosts())
+			#print(ipaddress.ip_network(prefixObj['prefix']).hosts())
+			mask = prefixObj['prefix'].split("/")[1]
 			for host in ipaddress.ip_network(prefixObj['prefix']).hosts():
-				listOfIps.append({"address": str(host)})
+				listOfIps.append({"address": str(host) + "/" + mask})
 		listOfIpsWithMask = listOfIps
+		print("List of IP's with mask: ")
+		print(listOfIpsWithMask)
+		print("List of existing IP addresses: ")
+		ip_result = requests.get(ip_addresses_url, headers = header)
+		listOfIps = ip_result.json()['results']
+		while ip_result.json()['next'] is not None:
+			ip_result = requests.get(ip_result.json()['next'], headers = header)
+			for ip in ip_result.json()['results']:
+				listOfIps.append(ip)
+		print(json.dumps(listOfIps, indent=4))
 		for ipaddr in listOfIpsWithMask:
 			ipaddr['isNew'] = "new"
+			ipaddr = mergeWithExisting(ipaddr, listOfIps)
+			print(json.dumps(ipaddr, indent=4))
 #		print "Stopping..." + None
 	#Pretty print new copy for debugging
 	print(json.dumps(listOfIpsWithMask, indent=4))
@@ -165,11 +198,11 @@ if __name__ == '__main__':
 	pool = Pool(processes=numProcesses)
 	#Here, we call isPingable for every entity in listOfIpsWithMask
 	result = pool.map(threadedPingReverseSave, listOfIpsWithMask)
-#	Presently looking at solutions that can sort this mess by IP address... currently results are unsorted.
+#Presently looking at solutions that can sort this mess by IP address... currently results are unsorted.
 	print(result)
 	print(json.dumps(result, indent=4))
-	completion_time = time.time() - start_time
-	print("Run took " + format(completion_time / 60) + " minutes and " + format(completion_time % 60) + " seconds")
 #	r = requests.post(ip_addresses_url, headers=header, json={"address": "192.168.3.2", "status": "1"})
 #	print r.status_code
 #	print r.json()
+	finish = datetime.datetime.now()
+	print("Completed in: " + str(finish - start))
