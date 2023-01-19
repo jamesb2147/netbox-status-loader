@@ -3,9 +3,9 @@
 
 import json, requests, ipaddress, dns.resolver, datetime
 #Python3 way (currently broken)
-#import ping3
+import ping3
 #Python2 way (currently the only non-broken way)
-import ping
+#import ping
 from multiprocessing import Pool
 
 #############################################################################
@@ -57,8 +57,14 @@ def threadedPingReverseSave(addr):
 	ip = (addr['address'].split("/"))[0]
 	#Run ping twice - first to ensure ARP completes before second ping goes through
 	#this is often visible in labs where the first ping to a newly online device will fail
-	ping.do_one(ip, timeout)
-	rtt = ping.do_one(ip, timeout)
+	
+	#Python2
+	#ping.do_one(ip, timeout)
+	#rtt = ping.do_one(ip, timeout)
+	#Python3
+	ping3.ping(ip, timeout=timeout)
+	rtt = ping3.ping(ip, timeout=timeout)
+	
 	#Create the appropriate search string for a PTR record by reversing the IP space and
 	#adding in-addr.arpa to the query
 	dnsreq = '.'.join(reversed(ip.split("."))) + ".in-addr.arpa"
